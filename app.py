@@ -84,8 +84,8 @@ st.dataframe(
             "Avg_Price": "{:,.0f}",
             "Market_price": "{:,.0f}",
             "Market_Value": "{:,.0f}",
-            "PnL_perc": "{:,.2f}",
+            "PnL_perc": "{:,.2f} %",
             "PnL": "{:,.0f}",
         }
-    ).applymap(highlight_pnl, subset=["PnL"])
+    ).applymap(highlight_pnl, subset=["PnL", "PnL_perc"])
 )
