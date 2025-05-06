@@ -7,7 +7,9 @@ cash_flow_file = "data/cashflow_log.csv"
 
 # Tạo file nếu chưa có
 if not os.path.exists(cash_flow_file):
-    pd.DataFrame(columns=["Customer", "DateTime", "Action", "Amount", "Note"]).to_csv(cash_flow_file, index=False)
+    pd.DataFrame(columns=["Customer", "DateTime", "Action", "Amount", "Note"]).to_csv(
+        cash_flow_file, index=False
+    )
 
 df_customer = pd.read_csv("data/customer.csv")
 customer_list = df_customer["Customer"].tolist()
@@ -29,15 +31,19 @@ with st.form("cashflow_form", clear_on_submit=True):
         final_amount = sign * amount
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        new_row = pd.DataFrame([{
-            "Customer" : customer.upper(),
-            "DateTime": now,
-            "Action": action,
-            "Amount": final_amount,
-            "Note": note
-        }])
+        new_row = pd.DataFrame(
+            [
+                {
+                    "Customer": customer.upper(),
+                    "DateTime": now,
+                    "Action": action,
+                    "Amount": final_amount,
+                    "Note": note,
+                }
+            ]
+        )
         df_cash = pd.read_csv(cash_flow_file)
-        df_cash = pd.concat([df_cash, new_row], ignore_index = False)
+        df_cash = pd.concat([df_cash, new_row], ignore_index=False)
         df_cash.to_csv(cash_flow_file, index=False)
 
         st.success(f"✅ Đã ghi: {action} {amount:,.0f} VNĐ")
@@ -45,16 +51,16 @@ with st.form("cashflow_form", clear_on_submit=True):
 st.markdown("### 📋 Giao dịch tiền gần đây")
 df_cash = pd.read_csv(cash_flow_file)
 df_filtered = df_cash[df_cash["Customer"] == customer]
-st.dataframe(df_filtered.tail(10).style.format({
-    "Amount": "{:,.0f} VNĐ"
-}))
+st.dataframe(df_filtered.tail(10).style.format({"Amount": "{:,.0f} VNĐ"}))
 
 ######## FORM TRANSACTION
 
-transaction_file = "data/transactions_log.csv"
+transaction_file = "data/transaction_log.csv"
 # Tạo file nếu chưa có
 if not os.path.exists(transaction_file):
-    pd.DataFrame(columns=["DateTime", "Customer", "Stock", "Order", "Volume", "Price", "Note"]).to_csv(transaction_file, index=False)
+    pd.DataFrame(
+        columns=["DateTime", "Customer", "Stock", "Order", "Volume", "Price", "Note"]
+    ).to_csv(transaction_file, index=False)
 
 st.subheader("📝 Nhập Giao Dịch Mua/Bán Cổ Phiếu")
 with st.form("trade_form", clear_on_submit=True):
@@ -74,21 +80,27 @@ with st.form("trade_form", clear_on_submit=True):
 
     if submitted:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        new_trade = pd.DataFrame([{
-            "DateTime": now,
-            "Customer": customer,
-            "Stock": stock,
-            "Order": order_type,
-            "Volume": volume,
-            "Price": price,
-            "Note": note
-        }])
+        new_trade = pd.DataFrame(
+            [
+                {
+                    "DateTime": now,
+                    "Customer": customer,
+                    "Stock": stock,
+                    "Order": order_type,
+                    "Volume": volume,
+                    "Price": price,
+                    "Note": note,
+                }
+            ]
+        )
 
         df_trades = pd.read_csv(transaction_file)
         df_trades = pd.concat([df_trades, new_trade], ignore_index=True)
         df_trades.to_csv(transaction_file, index=False)
 
-        st.success(f"✅ Đã ghi giao dịch {order_type.lower()} {volume} {stock} cho {customer}")
+        st.success(
+            f"✅ Đã ghi giao dịch {order_type.lower()} {volume} {stock} cho {customer}"
+        )
 
 st.markdown("### 📋 Giao dịch gần đây theo khách hàng")
 
@@ -99,34 +111,33 @@ st.dataframe(df_recent_trades)
 #### Cập nhật giao dịch bằng file
 st.subheader("📤 Nhập giao dịch từ file Excel")
 
-uploaded_file = st.file_uploader("Tải lên file Excel giao dịch", type=["xlsx", "csv"])
+uploaded_file = st.file_uploader(
+    "Tải lên file giao dịch (.xlsx hoặc .csv)", type=["xlsx", "csv"]
+)
 
 if uploaded_file is not None:
     try:
-        # Đọc file
+        # Đọc file Excel hoặc CSV
         if uploaded_file.name.endswith(".csv"):
             df_import = pd.read_csv(uploaded_file)
         else:
             df_import = pd.read_excel(uploaded_file)
 
-        # Kiểm tra cột bắt buộc
+        # Kiểm tra các cột bắt buộc
         required_cols = ["DateTime", "Customer", "Stock", "Order", "Volume", "Price"]
         if all(col in df_import.columns for col in required_cols):
-            # Load file hiện tại
+            # Load giao dịch hiện tại
             df_existing = pd.read_csv(transaction_file)
 
-            # Gộp và xoá dòng trùng (nếu có)
-            df_merged = pd.concat([df_existing, df_import], ignore_index=True)
-            df_merged.drop_duplicates(
-                subset=["DateTime", "Customer", "Stock", "Order", "Volume", "Price"],
-                inplace=True
-            )
+            # Gộp dữ liệu KHÔNG xoá trùng
+            df_combined = pd.concat([df_existing, df_import], ignore_index=True)
 
-            # Ghi lại
-            df_merged.to_csv(transaction_file, index=False)
-            st.success("✅ Đã nhập file và cập nhật giao dịch thành công!")
+            # Ghi lại file
+            df_combined.to_csv(transaction_file, index=False)
+            st.success("✅ Đã nhập file thành công và ghi toàn bộ giao dịch!")
+
         else:
             st.warning("⚠️ File thiếu cột bắt buộc: " + ", ".join(required_cols))
 
     except Exception as e:
-        st.error(f"❌ Lỗi khi đọc file: {e}")
+        st.error(f"❌ Lỗi khi xử lý file: {e}")
