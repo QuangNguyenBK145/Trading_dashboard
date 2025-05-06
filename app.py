@@ -1,7 +1,15 @@
 import pandas as pd
 from collections import defaultdict, deque
-from get_price import get_price_cp68
+from get_price import get_price_cp68,get_price_change
 import streamlit as st
+import plotly.graph_objects as go
+import plotly.express as px
+from datetime import date
+import os
+
+# GIAO DIỆN STREAMLIT
+st.set_page_config(page_title="Dashboard Portfolio Managetment", layout="wide")
+st.title("📈 Danh Mục Đầu Tư")
 
 # ĐỌC DỮ LIỆU, SẮP XẾP LẠI
 df = pd.read_excel("Data.xlsx", sheet_name="LSMB")  # Đọc sheet LSMB từ file excel
@@ -48,14 +56,14 @@ for stock, lots in inventory.items():
         {
             "Stock": stock,
             "Quantity": total_qty,
-            "Avg_Price": round(avg_price, 2),
-            "Total_Cost": round(total_cost, 0),
+            "Avg_Price": round(avg_price, 2)
         }
     )
 
 # TRẢ KẾT QUẢ RA DATAFRAME
 df_danh_muc = pd.DataFrame(danh_muc)
 df_danh_muc["Market_price"] = df_danh_muc["Stock"].apply(get_price_cp68) * 1000
+df_danh_muc["Buy Value"] = df_danh_muc["Avg_Price"] * df_danh_muc["Quantity"]
 df_danh_muc["Market_Value"] = df_danh_muc["Market_price"] * df_danh_muc["Quantity"]
 df_danh_muc["PnL"] = (
     df_danh_muc["Market_Value"] - df_danh_muc["Quantity"] * df_danh_muc["Avg_Price"]
@@ -63,13 +71,30 @@ df_danh_muc["PnL"] = (
 df_danh_muc["PnL_perc"] = (
     df_danh_muc["PnL"] / (df_danh_muc["Quantity"] * df_danh_muc["Avg_Price"]) * 100
 )
-
-# GIAO DIỆN STREAMLIT
-st.set_page_config(page_title="Dashboard Portfolio Managetment", layout="wide")
-st.title("📈 Danh Mục Đầu Tư")
-
+df_danh_muc["Day change"] = df_danh_muc["Stock"].apply(get_price_change) * df_danh_muc["Quantity"] * 1000
 total_PnL = df_danh_muc["PnL"].sum()
-st.metric("Tổng lãi/Lỗ chưa thực hiện", f"{total_PnL:,.0f} VNĐ", delta_color="normal")
+day_change_value = (df_danh_muc["Day change"]).sum()
+# TRẢ KẾT QUẢ RA DATAFRAME
+if st.button("🔁 Cập nhật giá thị trường"):
+    df_danh_muc["Market_price"] = df_danh_muc["Stock"].apply(get_price_cp68) * 1000
+
+    df_danh_muc["Market_Value"] = df_danh_muc["Market_price"] * df_danh_muc["Quantity"]
+    df_danh_muc["PnL"] = (
+        df_danh_muc["Market_Value"] - df_danh_muc["Quantity"] * df_danh_muc["Avg_Price"]
+    )
+    df_danh_muc["PnL_perc"] = (
+        df_danh_muc["PnL"] / (df_danh_muc["Quantity"] * df_danh_muc["Avg_Price"]) * 100
+    )
+    st.success("Đã cập nhật giá thành công!")
+
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Tổng lãi/Lỗ chưa thực hiện", f"{total_PnL:,.0f} VNĐ", delta_color="normal")
+with col2:
+    st.metric("Tổng số mã sinh lời", (df_danh_muc["PnL"]>0).sum())
+with col3:
+    st.metric("Tổng thay đổi hôm nay", f"{day_change_value:,.0f} VND", delta_color="inverse")
 
 
 # TÔ MÀU LÃI LỖ
@@ -81,11 +106,90 @@ def highlight_pnl(val):
 st.dataframe(
     df_danh_muc.style.format(
         {
-            "Avg_Price": "{:,.0f}",
-            "Market_price": "{:,.0f}",
-            "Market_Value": "{:,.0f}",
+            "Avg_Price": "{:,.0f} VNĐ",
+            "Market_price": "{:,.0f} VNĐ",
+            "Market_Value": "{:,.0f} VNĐ",
+            "Buy Value": "{:,.0f} VNĐ",
             "PnL_perc": "{:,.2f} %",
-            "PnL": "{:,.0f}",
+            "PnL": "{:,.0f} VNĐ",
+            "Day change": "{:,.0f} VNĐ"
         }
-    ).applymap(highlight_pnl, subset=["PnL", "PnL_perc"])
+    ).applymap(highlight_pnl, subset=["PnL", "PnL_perc", "Day change"])
 )
+
+# Vẽ đồ thị cột thể hiện lãi lỗ
+# Chuẩn bị dữ liệu
+waterfall_data = df_danh_muc[["Stock", "PnL"]].copy()
+waterfall_data.loc[len(waterfall_data.index)] = ["Tổng", waterfall_data["PnL"].sum()]
+
+# Tạo biểu đồ Waterfall
+fig = go.Figure(go.Waterfall(
+    name="PnL",
+    orientation="v",
+    measure=["relative"] * (len(waterfall_data) - 1) + ["total"],
+    x=waterfall_data["Stock"],
+    y=waterfall_data["PnL"],
+    text=[f"{v:,.0f}" for v in waterfall_data["PnL"]],
+    textposition="outside",
+    increasing={"marker": {"color": "green"}},
+    decreasing={"marker": {"color": "red"}},
+    totals={"marker": {"color": "blue"}}
+))
+
+fig.update_layout(
+    title="💧 Waterfall Chart – Lãi/Lỗ theo Mã Cổ Phiếu",
+    yaxis_title="PnL (VNĐ)",
+    xaxis_title="Mã cổ phiếu",
+    height=500
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+
+
+st.subheader("🥧 Tỷ trọng giá trị các mã trong Danh mục")
+
+# Pie chart theo Market Value
+fig = px.pie(
+    df_danh_muc,
+    names="Stock",
+    values="Market_Value",
+    title="Phân bổ danh mục theo giá trị thị trường",
+    hole=0.4  # donut chart
+)
+
+fig.update_traces(textinfo="percent+label")
+
+st.plotly_chart(fig, use_container_width=True)
+
+### TẠO BẢNG CẬP NHẬT GIÁ TRỊ NAV
+# Tính tổng NAV    -     sẽ sửa lại sau
+total_NAV = df_danh_muc["Market_Value"].sum()
+today = date.today().strftime("%Y-%m-%d")
+
+# Ghi vào file log
+nav_log_file = "Data/nav_log.csv"
+
+#Nếu file chưa tồn tại, tạo header
+if not os.path.exists(nav_log_file):
+    pd.DataFrame(columns=["Date","NAV"]).to_csv(nav_log_file, index=False)
+
+# Ghi thêm dòng mới
+df_log = pd.read_csv(nav_log_file)
+
+# Kiểm tra ngày hôm nay đã có log --> không ghi trùng
+if today not in df_log["Date"].values:
+    new_row = pd.DataFrame([{"Date": today, "NAV": total_NAV}])
+    df_log = pd.concat([df_log, new_row], ignore_index=True)
+    df_log.to_csv(nav_log_file, index=False)
+    st.success("✅ Đã lưu lịch sử NAV hôm nay!")
+else:
+    st.info("📌 NAV hôm nay đã được lưu rồi.")
+
+st.subheader("📈 Biến động NAV theo thời gian")
+
+df_nav_log = pd.read_csv(nav_log_file)
+df_nav_log["Date"] = pd.to_datetime(df_nav_log["Date"])
+
+st.line_chart(df_nav_log.set_index("Date"))
+
