@@ -1,5 +1,11 @@
-def calculate_portfolio(customer_name):
-    df_cust = df_trades[df_trades["Customer"] == customer_name].copy()
+import pandas as pd
+from utils.get_price import get_price_cp68, get_price_change
+
+def calculate_portfolio(customer_name, as_of_date, df_trades):
+    df_cust = df_trades[
+        (df_trades["Customer"] == customer_name) &
+        (df_trades["DateTime"] <= pd.to_datetime(as_of_date))
+    ].copy()
     df_cust = df_cust.sort_values("DateTime")
 
     holdings = {}
@@ -34,21 +40,19 @@ def calculate_portfolio(customer_name):
             continue
         total_cost = sum(b["volume"] * b["price"] for b in batches)
         avg_price = total_cost / total_qty
-        market_price = get_price_cp68(stock)  # Hàm lấy giá web chồng đã có
+        market_price = get_price_cp68(stock) * 1000  # Hàm lấy giá web chồng đã có
         market_value = market_price * total_qty
         pnl = market_value - total_cost
 
-        data.append(
-            {
-                "Customer": customer_name,
-                "Stock": stock,
-                "Quantity": total_qty,
-                "Avg_Price": round(avg_price),
-                "Total_Cost": round(total_cost),
-                "Market_Price": round(market_price),
-                "Market_Value": round(market_value),
-                "PnL": round(pnl),
-            }
-        )
+        data.append({
+            "Customer": customer_name,
+            "Stock": stock,
+            "Quantity": total_qty,
+            "Avg_Price": round(avg_price),
+            "Total_Cost": round(total_cost),
+            "Market_Price": round(market_price),
+            "Market_Value": round(market_value),
+            "PnL": round(pnl)
+        })
 
     return pd.DataFrame(data)

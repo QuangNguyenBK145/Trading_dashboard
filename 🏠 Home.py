@@ -1,15 +1,27 @@
+import streamlit as st
+
+st.set_page_config(
+    page_title="Trading Dashboard",
+    page_icon="📈",
+    layout="wide"
+)
+
+with st.sidebar:
+    st.markdown("## 💼 Portfolio Dashboard")
+    st.caption("📊 Quản lý danh mục đầu tư thông minh")
+    st.markdown("---")
+
+st.title("📊 Trading Dashboard")
+st.markdown("Chọn chức năng bên trái để bắt đầu:")
+
 import pandas as pd
 from collections import defaultdict, deque
-from get_price import get_price_cp68, get_price_change
-import streamlit as st
+from utils.get_price import get_price_cp68, get_price_change
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import date
 import os
 
-# GIAO DIỆN STREAMLIT
-st.set_page_config(page_title="Dashboard Portfolio Managetment", layout="wide")
-st.title("📈 Danh Mục Đầu Tư")
 
 # ĐỌC DỮ LIỆU, SẮP XẾP LẠI
 df = pd.read_csv("data/transaction_log.csv")

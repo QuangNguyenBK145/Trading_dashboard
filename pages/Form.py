@@ -1,7 +1,10 @@
+import streamlit as st
+
 import os
 import pandas as pd
 from datetime import datetime
-import streamlit as st
+from utils.get_price import update_price_log
+
 
 cash_flow_file = "data/cashflow_log.csv"
 
@@ -141,3 +144,27 @@ if uploaded_file is not None:
 
     except Exception as e:
         st.error(f"❌ Lỗi khi xử lý file: {e}")
+
+ 
+
+st.markdown("### 📈 Cập nhật giá lịch sử cổ phiếu")
+
+# Bước 1: Upload file .csv (tải từ Cafef, cophieu68, hoặc dữ liệu riêng)
+uploaded_file = st.file_uploader("📂 Chọn file giá cổ phiếu (.csv)", type=["csv"])
+
+# Bước 2: Đọc danh sách mã từng giao dịch từ file log
+try:
+    df_trades = pd.read_csv("data/transaction_log.csv")
+    symbol_list = sorted(df_trades["Stock"].dropna().unique())
+except FileNotFoundError:
+    st.warning("⚠️ Không tìm thấy file transaction_log.csv.")
+    symbol_list = []
+
+# Bước 3: Cho chọn các mã muốn giữ lại
+selected_tickers = st.multiselect("📌 Chọn các mã cần cập nhật giá", options=symbol_list, default=symbol_list)
+
+# Bước 4: Nếu có file và có mã, xử lý cập nhật
+if uploaded_file and selected_tickers and st.button("✅ Cập nhật vào price_log.csv"):
+    df_all = update_price_log(uploaded_file, selected_tickers)
+    st.success(f"🎉 Đã cập nhật {len(df_all)} dòng vào price_log.csv!")
+    st.dataframe(df_all.tail(10))
