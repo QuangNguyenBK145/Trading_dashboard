@@ -24,3 +24,4 @@ if st.button("📥 Tính danh mục tại thời điểm đã chọn"):
     total_cost = df_danh_muc["Total_Cost"].sum()
     st.metric("💼 Tổng giá vốn tại thời điểm đó", f"{total_cost:,.0f} VNĐ")
 
+#
