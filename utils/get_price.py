@@ -63,7 +63,7 @@ def update_price_log(uploaded_file, stocks_to_keep, log_path="data/price_log.csv
     df_new = df_new[df_new["Stock"].isin(stocks_to_keep)].copy()
 
     # Chuẩn hóa định dạng cột ngày
-    df_new["Date"] = pd.to_datetime(df_new["Date"]).dt.strftime("%Y-%m-%d")
+    df_new["Date"] = pd.to_datetime(df_new["Date"], format="%Y%m%d").dt.strftime("%Y-%m-%d")
 
     # Nếu file log chưa tồn tại hoặc rỗng
     if not os.path.exists(log_path) or os.stat(log_path).st_size == 0:
@@ -78,3 +78,15 @@ def update_price_log(uploaded_file, stocks_to_keep, log_path="data/price_log.csv
     df_all = df_all.drop_duplicates(subset=["Date", "Stock"], keep="last")
     df_all.to_csv(log_path, index=False)
     return df_all
+
+def get_market_price_from_log(stock, as_of_date, price_log_df):
+    # Lọc theo mã cổ phiếu và ngày gần nhất trước hoặc bằng ngày as_of_date
+    df = price_log_df[
+        (price_log_df["Stock"] == stock) &
+        (price_log_df["Date"] <= pd.to_datetime(as_of_date))
+    ]
+    if not df.empty:
+        return df.sort_values("Date", ascending=False).iloc[0]["Close"]
+    else:
+        return None  # hoặc raise error nếu cần
+

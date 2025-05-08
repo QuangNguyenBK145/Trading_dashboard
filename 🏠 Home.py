@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import date
 import os
+from utils.calculator import calculate_cashflow, calculate_portfolio, calculate_realized_pnl, calculate_nav_home
 
 
 # ĐỌC DỮ LIỆU, SẮP XẾP LẠI
@@ -30,7 +31,11 @@ df = pd.read_csv("data/transaction_log.csv")
 customer_list = df["Customer"].dropna().unique().tolist()
 selected_customer = st.selectbox("👤 Chọn khách hàng", customer_list)
 df = df[df["Customer"] == selected_customer]
+as_of_date = pd.Timestamp.today().normalize()
 
+df_trades = pd.read_csv("data/transaction_log.csv", parse_dates=["DateTime"])
+df_cashflow = pd.read_csv("data/cashflow_log.csv", parse_dates=["DateTime"])
+df_price_log = pd.read_csv("data/price_log.csv", parse_dates=["Date"])
 
 df = df.sort_values("DateTime")  # Sắp xếp theo thời gian để đúng trình tự FIFO
 df["Order"] = df[
@@ -104,6 +109,16 @@ if st.button("🔁 Cập nhật giá thị trường"):
     )
     st.success("Đã cập nhật giá thành công!")
 
+
+nav_info = calculate_nav_home(selected_customer, as_of_date, df_trades, df_cashflow)
+total_nav_today = nav_info["NAV"] + total_PnL
+#----------------------------------- Vẽ Home Page --------------------------------------
+st.subheader("📊 NAV Tổng Quan")
+
+col1, col2, col3 = st.columns(3)
+col1.metric("💵 NAV", f"{total_nav_today:,.0f} đ")
+col2.metric("📈 Lãi/lỗ chưa thực hiện", f"{total_PnL:,.0f} đ")
+col3.metric("✅ Lãi/lỗ đã thực hiện", f"{nav_info['Realized_PnL']:,.0f} đ")
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -186,7 +201,6 @@ st.plotly_chart(fig, use_container_width=True)
 
 ### TẠO BẢNG CẬP NHẬT GIÁ TRỊ NAV
 # Tính tổng NAV    -     sẽ sửa lại sau
-total_NAV = df_danh_muc["Market_Value"].sum()
 today = date.today().strftime("%Y-%m-%d")
 
 # Ghi vào file log
@@ -201,7 +215,7 @@ df_log = pd.read_csv(nav_log_file)
 
 # Kiểm tra ngày hôm nay đã có log --> không ghi trùng
 if today not in df_log["Date"].values:
-    new_row = pd.DataFrame([{"Date": today, "NAV": total_NAV}])
+    new_row = pd.DataFrame([{"Date": today, "NAV": total_nav_today}])
     df_log = pd.concat([df_log, new_row], ignore_index=True)
     df_log.to_csv(nav_log_file, index=False)
     st.success("✅ Đã lưu lịch sử NAV hôm nay!")
