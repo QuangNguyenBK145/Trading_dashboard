@@ -21,8 +21,11 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import date
 import os
-from utils.calculator import calculate_cashflow, calculate_portfolio, calculate_realized_pnl, calculate_nav_home
-
+from utils.calculator import calculate_cashflow, calculate_portfolio, calculate_realized_pnl, calculate_nav_home, calculate_nav
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import numpy as np
+from scipy.interpolate import make_interp_spline
 
 # ĐỌC DỮ LIỆU, SẮP XẾP LẠI
 df = pd.read_csv("data/transaction_log.csv")
@@ -222,9 +225,69 @@ if today not in df_log["Date"].values:
 else:
     st.info("📌 NAV hôm nay đã được lưu rồi.")
 
+
+# TÍNH VÀ VẼ ĐỒ THỊ NAV
+
+dates_trade = df_trades[df_trades["Customer"] == selected_customer]["DateTime"]
+dates_cash = df_cashflow[df_cashflow["Customer"] == selected_customer]["DateTime"]
+
+# Lấy danh sách ngày duy nhất, sắp xếp tăng dần
+date_list = pd.Series(pd.concat([dates_trade, dates_cash]).unique())
+date_list = pd.to_datetime(date_list).dropna().sort_values().dt.normalize()
+
+nav_history = []
+
+for date in date_list:
+    nav_info = calculate_nav(selected_customer, date, df_trades, df_cashflow, df_price_log)
+    nav_info["Date"] = date
+    nav_history.append(nav_info)
+
+df_nav = pd.DataFrame(nav_history)
+df_nav = df_nav[df_nav["NAV"] > 0]
+
+# Tính NAV đầu & % tăng trưởng
+nav_start = df_nav["NAV"].iloc[0]
+nav_latest = df_nav["NAV"].iloc[-1]
+pct_change = (nav_latest - nav_start) / nav_start * 100
+nav_mean = df_nav["NAV"].mean()
+
+# Làm mượt đường NAV bằng spline interpolation
+x = np.arange(len(df_nav))
+x_smooth = np.linspace(x.min(), x.max(), 300)
+y_smooth = make_interp_spline(x, df_nav["NAV"])(x_smooth)
+
+st.subheader("📈 Biểu đồ tăng trưởng NAV")
+
+plt.style.use("dark_background")
+plt.rcParams["font.family"] = "DejaVu Sans"
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# Đường NAV mượt
+ax.plot(x_smooth, y_smooth, label="NAV", color='violet', linewidth=2)
+
+# Đường NAV trung bình
+ax.hlines(nav_mean, xmin=0, xmax=x_smooth.max(), colors='orange', linestyles='--', label="NAV trung bình")
+
+# Tuỳ chỉnh trục
+ax.set_title(f"Biến động NAV của {selected_customer}", fontsize=14, weight='bold')
+ax.set_ylabel("Giá trị NAV", fontsize=12)
+ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
+
+# Gắn mốc ngày lên trục X
+tick_idx = np.linspace(0, len(df_nav)-1, 6, dtype=int)
+ax.set_xticks(tick_idx)
+ax.set_xticklabels(df_nav["Date"].iloc[tick_idx].dt.strftime("%Y-%m-%d"), rotation=45)
+
+# Chú thích và hiển thị
+ax.legend()
+st.pyplot(fig)
+
+if st.button("Cập nhật NAV lịch sử"):
+    df_nav.to_csv(f"data/nav_history.csv", index=False)
+    st.success("Đã cập nhật thành công")
 st.subheader("📈 Biến động NAV theo thời gian")
 
-df_nav_log = pd.read_csv(nav_log_file)
+df_nav_log = pd.read_csv("data/nav_log.csv")
 df_nav_log["Date"] = pd.to_datetime(df_nav_log["Date"])
 
 st.line_chart(df_nav_log.set_index("Date"))
