@@ -4,8 +4,8 @@ from utils.get_price import get_price_cp68, get_price_change, get_market_price_f
 
 def calculate_portfolio(customer_name, as_of_date, df_trades, df_price_log):
     df_cust = df_trades[
-        (df_trades["Customer"] == customer_name) &
-        (df_trades["DateTime"] <= pd.to_datetime(as_of_date))
+        (df_trades["Customer"] == customer_name)
+        & (df_trades["DateTime"] <= pd.to_datetime(as_of_date))
     ].copy()
     df_cust = df_cust.sort_values("DateTime")
 
@@ -47,23 +47,26 @@ def calculate_portfolio(customer_name, as_of_date, df_trades, df_price_log):
         market_value = market_price * total_qty
         pnl = market_value - total_cost
 
-        data.append({
-            "Customer": customer_name,
-            "Stock": stock,
-            "Quantity": total_qty,
-            "Avg_Price": round(avg_price),
-            "Total_Cost": round(total_cost),
-            "Market_Price": round(market_price),
-            "Market_Value": round(market_value),
-            "PnL": round(pnl)
-        })
+        data.append(
+            {
+                "Customer": customer_name,
+                "Stock": stock,
+                "Quantity": total_qty,
+                "Avg_Price": round(avg_price),
+                "Total_Cost": round(total_cost),
+                "Market_Price": round(market_price),
+                "Market_Value": round(market_value),
+                "PnL": round(pnl),
+            }
+        )
 
     return pd.DataFrame(data)
+
 
 def calculate_cashflow(customer_name, as_of_date, df_cashflow):
     """
     Tính tổng tiền mặt đã nộp/rút của khách hàng đến thời điểm nhất định.
-    
+
     Args:
         customer_name (str): Tên khách hàng
         as_of_date (str or pd.Timestamp): Ngày tính NAV
@@ -75,11 +78,12 @@ def calculate_cashflow(customer_name, as_of_date, df_cashflow):
     as_of_date = pd.to_datetime(as_of_date)
 
     df = df_cashflow[
-        (df_cashflow["Customer"] == customer_name) &
-        (df_cashflow["DateTime"] <= as_of_date)
+        (df_cashflow["Customer"] == customer_name)
+        & (df_cashflow["DateTime"] <= as_of_date)
     ]
 
     return df["Amount"].sum()
+
 
 def calculate_realized_pnl(customer_name, as_of_date, df_trades):
     """
@@ -94,8 +98,8 @@ def calculate_realized_pnl(customer_name, as_of_date, df_trades):
         float: Tổng realized PnL
     """
     df_cust = df_trades[
-        (df_trades["Customer"] == customer_name) &
-        (df_trades["DateTime"] <= pd.to_datetime(as_of_date))
+        (df_trades["Customer"] == customer_name)
+        & (df_trades["DateTime"] <= pd.to_datetime(as_of_date))
     ].copy()
     df_cust = df_cust.sort_values("DateTime")
 
@@ -131,6 +135,7 @@ def calculate_realized_pnl(customer_name, as_of_date, df_trades):
 
     return round(realized_pnl)
 
+
 def calculate_nav_home(customer_name, as_of_date, df_trades, df_cashflow):
     """
     Tính NAV tổng hợp của khách hàng đến một ngày cụ thể.
@@ -148,7 +153,7 @@ def calculate_nav_home(customer_name, as_of_date, df_trades, df_cashflow):
     # Tính từng phần
     net_cash = calculate_cashflow(customer_name, as_of_date, df_cashflow)
     realized_pnl = calculate_realized_pnl(customer_name, as_of_date, df_trades)
-    
+
     # Tổng NAV
     nav = net_cash + realized_pnl
 
@@ -157,8 +162,9 @@ def calculate_nav_home(customer_name, as_of_date, df_trades, df_cashflow):
         "Date": as_of_date,
         "Net_Cash": round(net_cash),
         "Realized_PnL": round(realized_pnl),
-        "NAV": round(nav)
+        "NAV": round(nav),
     }
+
 
 def calculate_nav(customer_name, as_of_date, df_trades, df_cashflow, df_price_log):
     """
@@ -177,7 +183,9 @@ def calculate_nav(customer_name, as_of_date, df_trades, df_cashflow, df_price_lo
     # Tính từng phần
     net_cash = calculate_cashflow(customer_name, as_of_date, df_cashflow)
     realized_pnl = calculate_realized_pnl(customer_name, as_of_date, df_trades)
-    df_portfolio = calculate_portfolio(customer_name, as_of_date, df_trades, df_price_log)
+    df_portfolio = calculate_portfolio(
+        customer_name, as_of_date, df_trades, df_price_log
+    )
     unrealized_pnl = df_portfolio["PnL"].sum() if not df_portfolio.empty else 0
 
     # Tổng NAV
@@ -189,5 +197,30 @@ def calculate_nav(customer_name, as_of_date, df_trades, df_cashflow, df_price_lo
         "Net_Cash": round(net_cash),
         "Realized_PnL": round(realized_pnl),
         "Unrealized_PnL": round(unrealized_pnl),
-        "NAV": round(nav)
+        "NAV": round(nav),
     }
+
+
+def calculate_fees_and_tax(df_trades, selected_date, customer_name):
+    df = df_trades.copy()
+    df["DateTime"] = pd.to_datetime(df["DateTime"])
+    df = df[
+        (df["Customer"] == customer_name)
+        & (df["DateTime"] <= pd.to_datetime(selected_date))
+    ]
+
+    # Phí giao dịch: 0.15% * khối lượng * giá
+    df["Fee"] = df["Volume"] * df["Price"] * 0.0015
+    fee_total = df["Fee"].sum()
+
+    # Thuế bán: 0.1% * khối lượng * giá của lệnh bán
+    df_sell = df[df["Order"] == "Bán"]
+    tax_total = (df_sell["Volume"] * df_sell["Price"] * 0.001).sum()
+
+    return round(fee_total), round(tax_total)
+
+
+def calculate_margin_interest(nav_yesterday, market_value_today, interest_rate=0.14):
+    margin = max(0, market_value_today - nav_yesterday)
+    interest = margin * interest_rate / 360
+    return round(margin), round(interest)

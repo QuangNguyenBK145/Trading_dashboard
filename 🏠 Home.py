@@ -1,10 +1,6 @@
 import streamlit as st
 
-st.set_page_config(
-    page_title="Trading Dashboard",
-    page_icon="📈",
-    layout="wide"
-)
+st.set_page_config(page_title="Trading Dashboard", page_icon="📈", layout="wide")
 
 with st.sidebar:
     st.markdown("## 💼 Portfolio Dashboard")
@@ -21,7 +17,14 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import date
 import os
-from utils.calculator import calculate_cashflow, calculate_portfolio, calculate_realized_pnl, calculate_nav_home, calculate_nav
+from utils.calculator import (
+    calculate_cashflow,
+    calculate_portfolio,
+    calculate_realized_pnl,
+    calculate_nav_home,
+    calculate_nav,
+    calculate_fees_and_tax,
+)
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
@@ -114,13 +117,17 @@ if st.button("🔁 Cập nhật giá thị trường"):
 
 
 nav_info = calculate_nav_home(selected_customer, as_of_date, df_trades, df_cashflow)
-total_nav_today = nav_info["NAV"] + total_PnL
-#----------------------------------- Vẽ Home Page --------------------------------------
+# Phí và thuế
+fee_total, tax_total = calculate_fees_and_tax(df_trades, as_of_date, selected_customer)
+
+
+total_nav_today = nav_info["NAV"] + total_PnL - fee_total - tax_total
+# ----------------------------------- Vẽ Home Page --------------------------------------
 st.subheader("📊 NAV Tổng Quan")
 
 col1, col2, col3 = st.columns(3)
 col1.metric("💵 NAV", f"{total_nav_today:,.0f} đ")
-col2.metric("📈 Lãi/lỗ chưa thực hiện", f"{total_PnL:,.0f} đ")
+col2.metric("📈 Tổng chi phí", f"{fee_total+tax_total:,.0f} đ")
 col3.metric("✅ Lãi/lỗ đã thực hiện", f"{nav_info['Realized_PnL']:,.0f} đ")
 
 col1, col2, col3 = st.columns(3)
@@ -238,7 +245,9 @@ date_list = pd.to_datetime(date_list).dropna().sort_values().dt.normalize()
 nav_history = []
 
 for date in date_list:
-    nav_info = calculate_nav(selected_customer, date, df_trades, df_cashflow, df_price_log)
+    nav_info = calculate_nav(
+        selected_customer, date, df_trades, df_cashflow, df_price_log
+    )
     nav_info["Date"] = date
     nav_history.append(nav_info)
 
@@ -263,18 +272,25 @@ plt.rcParams["font.family"] = "DejaVu Sans"
 fig, ax = plt.subplots(figsize=(10, 5))
 
 # Đường NAV mượt
-ax.plot(x_smooth, y_smooth, label="NAV", color='violet', linewidth=2)
+ax.plot(x_smooth, y_smooth, label="NAV", color="violet", linewidth=2)
 
 # Đường NAV trung bình
-ax.hlines(nav_mean, xmin=0, xmax=x_smooth.max(), colors='orange', linestyles='--', label="NAV trung bình")
+ax.hlines(
+    nav_mean,
+    xmin=0,
+    xmax=x_smooth.max(),
+    colors="orange",
+    linestyles="--",
+    label="NAV trung bình",
+)
 
 # Tuỳ chỉnh trục
-ax.set_title(f"Biến động NAV của {selected_customer}", fontsize=14, weight='bold')
+ax.set_title(f"Biến động NAV của {selected_customer}", fontsize=14, weight="bold")
 ax.set_ylabel("Giá trị NAV", fontsize=12)
 ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
 
 # Gắn mốc ngày lên trục X
-tick_idx = np.linspace(0, len(df_nav)-1, 6, dtype=int)
+tick_idx = np.linspace(0, len(df_nav) - 1, 6, dtype=int)
 ax.set_xticks(tick_idx)
 ax.set_xticklabels(df_nav["Date"].iloc[tick_idx].dt.strftime("%Y-%m-%d"), rotation=45)
 
