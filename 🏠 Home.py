@@ -18,9 +18,6 @@ import plotly.express as px
 from datetime import date
 import os
 from utils.calculator import (
-    calculate_cashflow,
-    calculate_portfolio,
-    calculate_realized_pnl,
     calculate_nav_home,
     calculate_nav,
     calculate_fees_and_tax,
@@ -299,7 +296,7 @@ ax.legend()
 st.pyplot(fig)
 
 if st.button("Cập nhật NAV lịch sử"):
-    df_nav.to_csv(f"data/nav_history.csv", index=False)
+    df_nav.to_csv("data/nav_history.csv", index=False)
     st.success("Đã cập nhật thành công")
 st.subheader("📈 Biến động NAV theo thời gian")
 
