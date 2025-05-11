@@ -211,7 +211,7 @@ st.plotly_chart(fig, use_container_width=True)
 today = date.today().strftime("%Y-%m-%d")
 
 # Ghi vào file log
-nav_log_file = "Data/nav_log.csv"
+nav_log_file = "data/nav_log.csv"
 
 # Nếu file chưa tồn tại, tạo header
 if not os.path.exists(nav_log_file):
